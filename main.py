@@ -105,15 +105,15 @@
 # print(result)
 
 
-class car:
-    def __init__(self, yanse, siyou):
-        self.yanse = yanse
-        self.__siyou = siyou
+# class car:
+#     def __init__(self, yanse, siyou):
+#         self.yanse = yanse
+#         self.__siyou = siyou
 
 
-a = car("hongse", "kandedaoma")
-print(a.yanse)
-print(a._car__siyou)
+# a = car("hongse", "kandedaoma")
+# print(a.yanse)
+# print(a._car__siyou)
 
 # from pydantic import BaseModel
 
