@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<body>
+    <button id="btn">点击请求后端数据</button>
+    <pre id="result">等待请求...</pre>
+
+    <script>
+        document.getElementById('btn').onclick = async function() {
+            try {
+                // 注意：这里请求的是 8000 端口的后端
+                const resp = await fetch('http://127.0.0.1:8000/users');
+                const data = await resp.json();
+                document.getElementById('result').textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                document.getElementById('result').textContent = '请求失败: ' + error.message;
+            }
+        };
+    </script>
+</body>
+</html>
