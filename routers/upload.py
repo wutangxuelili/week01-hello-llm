@@ -3,7 +3,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
-router = APIRouter()
+router = APIRouter(prefix="/登录", tags=["upload"])
 
 
 @router.post("/upload")

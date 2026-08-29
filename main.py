@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from routers import upload, user
+from routers import llm, upload, user
 
 redis_client = redis.Redis(
     host="localhost", port=6379, decode_responses=True, protocol=2
@@ -40,6 +40,7 @@ async def http_exception_handler(request, exc):
 
 app.include_router(user.router)
 app.include_router(upload.router)
+app.include_router(llm.router)
 
 
 @app.get("/")

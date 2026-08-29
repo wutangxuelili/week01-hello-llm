@@ -1,7 +1,5 @@
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, create_engine
-from sqlalchemy.orm import declarative_base, relationship, sessionmaker
-from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, create_engine, text
+from sqlalchemy.orm import Session, declarative_base, relationship, sessionmaker
 
 Base = declarative_base()
 

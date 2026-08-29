@@ -23,7 +23,8 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 
 def get_current_user(
-    token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),  # noqa: B008
 ):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -131,7 +132,7 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):  # noqa: B008
 
 @router.post("/login")
 def login(
-    form_data: OAuth2PasswordRequestForm = Depends(),
+    form_data: OAuth2PasswordRequestForm = Depends(),  # noqa: B008
     db: Session = Depends(get_db),  # noqa: B008
 ):
     user = db.query(User).filter(User.username == form_data.username).first()
