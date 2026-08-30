@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session, declarative_base, relationship, sessionmaker
 Base = declarative_base()
 
 
+# 数据库的一个什么测试
 class User(Base):
     __tablename__ = "users"
 

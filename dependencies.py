@@ -21,6 +21,11 @@ engine = create_engine(
     SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
 )
 
+import redis
+
+redis_client = redis.Redis(
+    host="localhost", port=6379, decode_responses=True, protocol=2
+)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base.metadata.create_all(bind=engine)

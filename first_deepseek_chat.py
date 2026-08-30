@@ -1,6 +1,6 @@
 from llm_client import LLMClient
 
-# ai测试脚本
+# ai测试脚本 以及jinja2模板的测试
 client = LLMClient()
 
 # system_prompt = "你是一个新闻摘要专家。"

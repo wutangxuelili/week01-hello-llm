@@ -5,11 +5,9 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from dependencies import redis_client
 from routers import llm, upload, user
 
-redis_client = redis.Redis(
-    host="localhost", port=6379, decode_responses=True, protocol=2
-)
 app = FastAPI()
 
 # ----- 添加 CORS 中间件 -----

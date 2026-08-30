@@ -1,6 +1,11 @@
+import ast
+import json
+
 from fastapi import APIRouter, HTTPException
 
+from dependencies import redis_client
 from llm_client import LLMClient
+from prompt_loader import load_prompt
 from schemas.llm import ChatRequest, ChatResponse
 
 router = APIRouter(prefix="/llm", tags=["LLM"])
@@ -13,11 +18,25 @@ def chat_endpoint(request: ChatRequest):
     接受用户输入的 prompt，调用 LLM 并返回回复。
     """
     try:
+        # 模板的使用
+        default_system_prompt = load_prompt("ceshibanben", "deepseek-chat")
+        effective_system_prompt = request.system_prompt or default_system_prompt
         # 构建消息列表
+        session_id = request.session_id
+        history_key = f"chat:history:{session_id}"
+
+        user_msg = json.dumps(
+            {"role": "user", "content": request.prompt}, ensure_ascii=False
+        )  # python转为字符串
+        redis_client.rpush(history_key, user_msg)
+
+        raw_history = redis_client.lrange(history_key, 0, -1)
+        history = [json.loads(msg) for msg in raw_history]
+
         messages = []
-        if request.system_prompt:
-            messages.append({"role": "system", "content": request.system_prompt})
-        messages.append({"role": "user", "content": request.prompt})
+        if effective_system_prompt:
+            messages.append({"role": "system", "content": effective_system_prompt})
+        messages.extend(history)
 
         # 调用 LLMClient 的 chat 方法
         reply = llm_client.chat(
@@ -25,7 +44,33 @@ def chat_endpoint(request: ChatRequest):
             temperature=request.temperature,
             max_tokens=request.max_tokens,
         )
-        return ChatResponse(response=reply)
+        assistant_msg = json.dumps(
+            {"role": "assistant", "content": reply}, ensure_ascii=False
+        )
+        redis_client.rpush(history_key, assistant_msg)
+        # ----- 清洗回复 -----
+        # 1. 尝试去除可能的 Markdown 代码块标记
+        cleaned = reply.strip()
+        cleaned = cleaned.removeprefix("```json")
+        cleaned = cleaned.removeprefix("```")
+        cleaned = cleaned.removesuffix("```")
+        cleaned = cleaned.strip()
+
+        # 2. 尝试用 ast.literal_eval 解析 Python 字面量（可处理单引号、None等）
+        try:
+            data = ast.literal_eval(cleaned)
+            # 如果解析结果是字典，再将其转为 JSON 字符串
+            if isinstance(data, dict):
+                cleaned = json.dumps(data, ensure_ascii=False)
+        except (SyntaxError, ValueError):
+            # 如果解析失败，尝试直接解析为 JSON（可能已经是 JSON 格式）
+            try:
+                data = json.loads(cleaned)
+                cleaned = json.dumps(data, ensure_ascii=False)
+            except json.JSONDecodeError:
+                # 如果都失败，保留原始回复
+                pass
+        return ChatResponse(response=cleaned)
 
     except Exception as e:  # noqa: BLE001
         # 将底层异常转换为 HTTP 500 错误
