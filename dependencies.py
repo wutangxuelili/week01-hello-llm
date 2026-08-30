@@ -45,3 +45,16 @@ def get_db():
 def write_log(a: str):  # 写入字符串
     with open("server.log", "a", encoding="utf-8") as f:
         f.write(a)
+
+
+# 截断上下文
+# 假设你已经构建好了 messages = [system] + history
+import tiktoken
+
+
+def count_tokens(messages):
+    # 用 tiktoken 计算总 Token 数
+    enc = tiktoken.encoding_for_model("gpt-4")
+    # 拼接为一个文本
+    text = "\n".join([msg["content"] for msg in messages])
+    return len(enc.encode(text))

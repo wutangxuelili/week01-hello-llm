@@ -3,13 +3,14 @@ import json
 
 from fastapi import APIRouter, HTTPException
 
-from dependencies import redis_client
+from dependencies import count_tokens, redis_client
 from llm_client import LLMClient
 from prompt_loader import load_prompt
 from schemas.llm import ChatRequest, ChatResponse
 
 router = APIRouter(prefix="/llm", tags=["LLM"])
 llm_client = LLMClient()
+MAX_TOKENS = 4000
 
 
 @router.post("/chat")
@@ -38,6 +39,17 @@ def chat_endpoint(request: ChatRequest):
             messages.append({"role": "system", "content": effective_system_prompt})
         messages.extend(history)
 
+        # 上下文截断
+        total_tokens = count_tokens(messages)  # 计算当前总token
+
+        while total_tokens > MAX_TOKENS and len(messages) > 1:
+            print(len(messages), total_tokens)
+            if len(messages) >= 3:
+                del messages[1:3]
+            else:
+                messages.pop(1)
+            total_tokens = count_tokens(messages)
+
         # 调用 LLMClient 的 chat 方法
         reply = llm_client.chat(
             messages=messages,
@@ -48,6 +60,7 @@ def chat_endpoint(request: ChatRequest):
             {"role": "assistant", "content": reply}, ensure_ascii=False
         )  # 追加
         redis_client.rpush(history_key, assistant_msg)
+
         # ----- 清洗回复 -----
         # 1. 尝试去除可能的 Markdown 代码块标记
         cleaned = reply.strip()
