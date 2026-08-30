@@ -27,7 +27,7 @@ def chat_endpoint(request: ChatRequest):
 
         user_msg = json.dumps(
             {"role": "user", "content": request.prompt}, ensure_ascii=False
-        )  # python转为字符串
+        )  # python转为JSON字符串
         redis_client.rpush(history_key, user_msg)
 
         raw_history = redis_client.lrange(history_key, 0, -1)
@@ -46,7 +46,7 @@ def chat_endpoint(request: ChatRequest):
         )
         assistant_msg = json.dumps(
             {"role": "assistant", "content": reply}, ensure_ascii=False
-        )
+        )  # 追加
         redis_client.rpush(history_key, assistant_msg)
         # ----- 清洗回复 -----
         # 1. 尝试去除可能的 Markdown 代码块标记
