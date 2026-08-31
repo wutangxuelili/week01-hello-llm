@@ -67,3 +67,31 @@ class LLMClient:
 
         completion = _call()
         return completion.choices[0].message.content
+
+    def chat_stream(
+        self, messages, model=None, temperature=0.7, max_tokens=None, stop=None
+    ):
+        model_to_use = model or self.default_model
+        if not model_to_use:
+            raise ValueError(
+                "No model specified. Set LLM_DEFAULT_MODEL or pass model argument."
+            )
+        params = {
+            "model": model_to_use,
+            "messages": messages,
+            "temperature": temperature,
+            "stream": True,
+        }
+        if max_tokens is not None:
+            params["max_tokens"] = max_tokens
+        if stop is not None:
+            params["stop"] = stop
+
+        # 调用 API，返回一个迭代器（stream）
+        stream = self._client.chat.completions.create(**params)
+
+        for chunk in stream:
+            if chunk.choices and len(chunk.choices) > 0:
+                delta = chunk.choices[0].delta
+                if delta.content:
+                    yield delta.content

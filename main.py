@@ -12,10 +12,7 @@ app = FastAPI()
 # ----- 添加 CORS 中间件 -----
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],  # 允许所有来源（开发阶段）
+    allow_origins=["*"],  # 允许所有来源（开发阶段）
     allow_credentials=True,  # 允许携带 Cookie
     allow_methods=["*"],  # 允许所有 HTTP 方法（GET, POST, PUT, DELETE...）
     allow_headers=["*"],  # 允许所有请求头

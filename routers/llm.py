@@ -2,6 +2,7 @@ import ast
 import json
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 
 from dependencies import count_tokens, redis_client
 from llm_client import LLMClient
@@ -88,3 +89,64 @@ def chat_endpoint(request: ChatRequest):
     except Exception as e:  # noqa: BLE001
         # 将底层异常转换为 HTTP 500 错误
         raise HTTPException(status_code=500, detail=f"LLM 调用失败: {e}")
+
+
+@router.post("/chat/stream")
+def chat_stream_endpoint(request: ChatRequest):
+    """
+    流式对话接口，返回 SSE 事件流。
+    """
+    try:
+        # 1. 加载系统 Prompt
+        default_system_prompt = load_prompt("ceshibanben", "deepseek-chat")
+        effective_system_prompt = request.system_prompt or default_system_prompt
+
+        # 2. 处理历史（同 /chat 逻辑）
+        session_id = request.session_id
+        history_key = f"chat:history:{session_id}"
+
+        # 追加用户消息到 Redis
+        user_msg = json.dumps(
+            {"role": "user", "content": request.prompt}, ensure_ascii=False
+        )
+        redis_client.rpush(history_key, user_msg)
+
+        # 读取全部历史
+        raw_history = redis_client.lrange(history_key, 0, -1)
+        history = [json.loads(msg) for msg in raw_history]
+
+        # 构建 messages
+        messages = []
+        if effective_system_prompt:
+            messages.append({"role": "system", "content": effective_system_prompt})
+        messages.extend(history)
+
+        # 3. 截断逻辑（你已实现，保持不变）
+        # ...（你的截断代码）此处没写出来来
+
+        # 4. 定义生成器函数（负责流式输出 + 保存完整回复）
+        def event_generator():
+            full_reply = ""  # 用于拼接完整回复，以便存储到 Redis
+            # 调用流式 API
+            for chunk in llm_client.chat_stream(
+                messages=messages,
+                temperature=request.temperature,
+                max_tokens=request.max_tokens,
+            ):
+                full_reply += chunk
+                # 将每个片段包装成 SSE 格式
+                yield f"data: {chunk}\n\n"
+            # 流结束，发送结束标记（可选）
+            yield f"data: [DONE]\n\n"
+
+            # 将完整回复追加到 Redis（记忆存储）
+            assistant_msg = json.dumps(
+                {"role": "assistant", "content": full_reply}, ensure_ascii=False
+            )
+            redis_client.rpush(history_key, assistant_msg)
+
+        # 5. 返回 StreamingResponse（必须在生成器外面返回，不能在生成器内部 return）
+        return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"LLM 流式调用失败: {e}")

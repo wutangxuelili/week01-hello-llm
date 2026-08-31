@@ -1,4 +1,3 @@
-from fastapi import Depends
 from passlib.context import CryptContext
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker

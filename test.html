@@ -1,19 +1,88 @@
 <!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>流式对话测试</title>
+    <style>
+        body { font-family: sans-serif; max-width: 600px; margin: 40px auto; }
+        textarea { width: 100%; height: 80px; }
+        button { padding: 8px 16px; margin-top: 8px; }
+        #output { border: 1px solid #ccc; padding: 12px; min-height: 100px; margin-top: 16px; white-space: pre-wrap; word-wrap: break-word; }
+    </style>
+</head>
 <body>
-    <button id="btn">点击请求后端数据</button>
-    <pre id="result">等待请求...</pre>
+    <h2>流式对话测试</h2>
+    <textarea id="prompt" placeholder="请输入你的问题...">一句话介绍大模型</textarea>
+    <input id="sessionId" placeholder="session_id (可选)" value="test_user">
+    <button id="sendBtn">发送</button>
+    <div id="output">等待回复...</div>
 
     <script>
-        document.getElementById('btn').onclick = async function() {
+        const output = document.getElementById('output');
+        const sendBtn = document.getElementById('sendBtn');
+        const promptInput = document.getElementById('prompt');
+        const sessionInput = document.getElementById('sessionId');
+
+        sendBtn.addEventListener('click', async () => {
+            const prompt = promptInput.value.trim();
+            const sessionId = sessionInput.value.trim() || 'test_user';
+            if (!prompt) return;
+
+            output.textContent = '正在生成...';
+            sendBtn.disabled = true;
+
             try {
-                // 注意：这里请求的是 8000 端口的后端
-                const resp = await fetch('http://127.0.0.1:8000/users');
-                const data = await resp.json();
-                document.getElementById('result').textContent = JSON.stringify(data, null, 2);
+                const response = await fetch('http://127.0.0.1:8000/llm/chat/stream', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        prompt: prompt,
+                        session_id: sessionId,
+                        temperature: 0.7
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder('utf-8');
+                let fullText = '';
+                output.textContent = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    // 解码收到的字节流
+                    const chunk = decoder.decode(value, { stream: true });
+                    // 按 SSE 格式拆分数据
+                    const lines = chunk.split('\n');
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = line.slice(6); // 去掉 'data: '
+                            if (data === '[DONE]') {
+                                // 流结束
+                                break;
+                            }
+                            fullText += data;
+                            output.textContent = fullText;
+                        }
+                    }
+                }
+
+                if (fullText === '') {
+                    output.textContent = '（返回为空）';
+                }
+
             } catch (error) {
-                document.getElementById('result').textContent = '请求失败: ' + error.message;
+                output.textContent = `请求失败: ${error.message}`;
+                console.error(error);
+            } finally {
+                sendBtn.disabled = false;
             }
-        };
+        });
     </script>
 </body>
 </html>
