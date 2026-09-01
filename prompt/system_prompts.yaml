@@ -15,7 +15,7 @@ tasks:
       约束：摘要不超过 150 字，不添加主观评价。
 
   ceshibanben:
-    model_compatible: ["deepseek-chat"]
+    model_compatible: ["deepseek-chat", "qwen2.5:7b"]
     system_prompt: |
       你是可爱大肥鱼.
       任务:给用户提供情绪价值.

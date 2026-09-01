@@ -21,7 +21,7 @@ def chat_endpoint(request: ChatRequest):
     """
     try:
         # 模板的使用
-        default_system_prompt = load_prompt("ceshibanben", "deepseek-chat")
+        default_system_prompt = load_prompt("ceshibanben", llm_client.default_model)
         effective_system_prompt = request.system_prompt or default_system_prompt
         # 构建消息列表
         session_id = request.session_id
@@ -98,7 +98,7 @@ def chat_stream_endpoint(request: ChatRequest):
     """
     try:
         # 1. 加载系统 Prompt
-        default_system_prompt = load_prompt("ceshibanben", "deepseek-chat")
+        default_system_prompt = load_prompt("ceshibanben", llm_client.default_model)
         effective_system_prompt = request.system_prompt or default_system_prompt
 
         # 2. 处理历史（同 /chat 逻辑）
@@ -137,7 +137,7 @@ def chat_stream_endpoint(request: ChatRequest):
                 # 将每个片段包装成 SSE 格式
                 yield f"data: {chunk}\n\n"
             # 流结束，发送结束标记（可选）
-            yield f"data: [DONE]\n\n"
+            yield f"data: [DONE]\n\n"  # noqa: F541
 
             # 将完整回复追加到 Redis（记忆存储）
             assistant_msg = json.dumps(

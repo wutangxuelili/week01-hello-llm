@@ -9,23 +9,43 @@ from tenacity import (
     wait_exponential,
 )
 
-load_dotenv()
+load_dotenv(override=True)  # .env 优先，确保修改 LLM_PROVIDER 后重启即生效
 # llm的标准类
 
 
 class LLMClient:
     def __init__(self):
-        self.base_url = os.getenv("LLM_BASE_URL")
-        self.api_key = os.getenv("LLM_API_KEY")
-        self.default_model = os.getenv("LLM_DEFAULT_MODEL")
+        # 只改 .env 里的 LLM_PROVIDER 即可切换，支持 deepseek / ollama
+        provider = (os.getenv("LLM_PROVIDER") or "deepseek").strip().lower()
+        self.provider = provider
 
-        if not self.api_key:
-            raise ValueError("LLM_API_KEY is not set in environment variables.")
+        if provider == "deepseek":
+            self.base_url = os.getenv("LLM_BASE_URL")
+            self.api_key = os.getenv("LLM_API_KEY")
+            self.default_model = os.getenv("LLM_DEFAULT_MODEL")
+        elif provider == "ollama":
+            self.base_url = os.getenv("OLLAMA_BASE_URL")
+            self.api_key = (
+                "ollama"  # Ollama 本地服务不需要真实 key，但 OpenAI SDK 需要非空字符串
+            )
+            self.default_model = os.getenv("OLLAMA_MODEL")
+        else:
+            raise ValueError(
+                f"不支持的 LLM_PROVIDER: {provider}，只支持 deepseek / ollama"
+            )
 
+        if not self.base_url or not self.default_model:
+            raise ValueError(
+                f"配置缺失：请检查 .env 中 {provider.upper()}_BASE_URL 和 {provider.upper()}_MODEL"
+            )
         self._client = OpenAI(
             base_url=self.base_url,
             api_key=self.api_key,
             timeout=60.0,  # 设置全局超时 60 秒
+        )
+        print(
+            f"[LLMClient] provider={self.provider}, "
+            f"base_url={self.base_url}, model={self.default_model}"
         )
 
     def chat(self, messages, model=None, temperature=0.7, max_tokens=None, stop=None):
@@ -39,8 +59,9 @@ class LLMClient:
         params = {
             "model": model_to_use,
             "messages": messages,
-            "temperature": temperature,
         }
+        if temperature is not None:
+            params["temperature"] = temperature
         if max_tokens is not None:
             params["max_tokens"] = max_tokens
         if stop is not None:
@@ -79,9 +100,10 @@ class LLMClient:
         params = {
             "model": model_to_use,
             "messages": messages,
-            "temperature": temperature,
             "stream": True,
         }
+        if temperature is not None:
+            params["temperature"] = temperature
         if max_tokens is not None:
             params["max_tokens"] = max_tokens
         if stop is not None:
