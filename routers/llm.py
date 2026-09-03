@@ -11,7 +11,8 @@ from schemas.llm import ChatRequest, ChatResponse
 
 router = APIRouter(prefix="/llm", tags=["LLM"])
 llm_client = LLMClient()
-MAX_TOKENS = 4000
+MAX_TOKENS = 4000  # 最大记忆token用于截断
+CACHE_TTL = 86400  # 1 天 缓存生存时间
 
 
 @router.post("/chat")
@@ -20,6 +21,10 @@ def chat_endpoint(request: ChatRequest):
     接受用户输入的 prompt，调用 LLM 并返回回复。
     """
     try:
+        cache_key = f"faq:{request.prompt}"
+        cached = redis_client.get(cache_key)
+        if cached:
+            return ChatResponse(response=cached)
         # 模板的使用
         default_system_prompt = load_prompt("ceshibanben", llm_client.default_model)
         effective_system_prompt = request.system_prompt or default_system_prompt
@@ -84,6 +89,8 @@ def chat_endpoint(request: ChatRequest):
             except json.JSONDecodeError:
                 # 如果都失败，保留原始回复
                 pass
+        redis_client.setex(cache_key, CACHE_TTL, cleaned)
+
         return ChatResponse(response=cleaned)
 
     except Exception as e:  # noqa: BLE001
@@ -97,6 +104,16 @@ def chat_stream_endpoint(request: ChatRequest):
     流式对话接口，返回 SSE 事件流。
     """
     try:
+        cache_key = f"faq:{request.prompt}"
+        cached = redis_client.get(cache_key)
+        if cached:
+            # 模拟流式输出：逐字符 yield
+            def gen_cached():
+                for ch in cached:
+                    yield f"data: {ch}\n\n"
+                yield f"data: [DONE]\n\n"  # noqa: F541
+
+            return StreamingResponse(gen_cached(), media_type="text/event-stream")
         # 1. 加载系统 Prompt
         default_system_prompt = load_prompt("ceshibanben", llm_client.default_model)
         effective_system_prompt = request.system_prompt or default_system_prompt
@@ -122,7 +139,16 @@ def chat_stream_endpoint(request: ChatRequest):
         messages.extend(history)
 
         # 3. 截断逻辑（你已实现，保持不变）
-        # ...（你的截断代码）此处没写出来来
+        # 上下文截断
+        total_tokens = count_tokens(messages)  # 计算当前总token
+
+        while total_tokens > MAX_TOKENS and len(messages) > 1:
+            print(len(messages), total_tokens)
+            if len(messages) >= 3:
+                del messages[1:3]
+            else:
+                messages.pop(1)
+            total_tokens = count_tokens(messages)
 
         # 4. 定义生成器函数（负责流式输出 + 保存完整回复）
         def event_generator():
@@ -136,14 +162,14 @@ def chat_stream_endpoint(request: ChatRequest):
                 full_reply += chunk
                 # 将每个片段包装成 SSE 格式
                 yield f"data: {chunk}\n\n"
-            # 流结束，发送结束标记（可选）
-            yield f"data: [DONE]\n\n"  # noqa: F541
-
             # 将完整回复追加到 Redis（记忆存储）
             assistant_msg = json.dumps(
                 {"role": "assistant", "content": full_reply}, ensure_ascii=False
             )
             redis_client.rpush(history_key, assistant_msg)
+            redis_client.setex(cache_key, CACHE_TTL, full_reply)
+            # 流结束，发送结束标记（可选）
+            yield f"data: [DONE]\n\n"  # noqa: F541
 
         # 5. 返回 StreamingResponse（必须在生成器外面返回，不能在生成器内部 return）
         return StreamingResponse(event_generator(), media_type="text/event-stream")
